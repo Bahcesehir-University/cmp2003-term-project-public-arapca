@@ -47,6 +47,7 @@ private:
     // Statistics
     long long totalRecords;
     long long validRecords;
+    long long skippedRecords;
     
     // Helper functions
     bool parseCSVLine(const std::string& line, std::string& zoneID, int& hour);
@@ -55,17 +56,32 @@ private:
 public:
     TripAnalyzer();
     
-    // Main interface functions (MUST NOT CHANGE SIGNATURES)
+    // Main interface functions
     void ingestFile(const std::string& filename);
     std::vector<ZoneCount> topZones(int k = 10) const;
     std::vector<SlotCount> topBusySlots(int k = 10) const;
     
+    // Test functions (for autograder)
+    bool testEmptyFile();
+    bool testDirtyData();
+    bool testBoundaryHours();
+    bool testTieBreaker();
+    bool testSingleHit();
+    bool testCaseSensitivity();
+    bool testHighCollision();
+    bool testHighCardinality();
+    bool testVolume();
+    
     // Utility functions
     long long getTotalRecords() const { return totalRecords; }
     long long getValidRecords() const { return validRecords; }
+    long long getSkippedRecords() const { return skippedRecords; }
     
-    // For testing
+    // Clear for testing
     void clear();
+    
+    // Run specific test
+    void runTest(const std::string& testName);
 };
 
 #endif // TRIP_ANALYZER_H
