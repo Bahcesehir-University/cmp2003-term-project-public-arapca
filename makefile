@@ -1,76 +1,48 @@
-CXX       := g++
-CXXFLAGS  := -std=c++17 -O2 -Wall -Wextra -I.
-LDFLAGS   :=
+# C++ compiler
+CXX = g++
+CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -I.
+TARGET = trip_analyzer
+TEST_TARGET = run_tests
 
-APP       := app
-TESTBIN   := tests
+# Source files
+SRCS = trip_analyzer.cpp
+MAIN_SRC = main.cpp $(SRCS)
+TEST_SRCS = test_main.cpp $(SRCS)
 
-APP_SRC   := main.cpp analyzer.cpp
-TEST_SRC  := test_trip_analyzer.cpp analyzer.cpp catch_amalgamated.cpp
+# Object files
+MAIN_OBJS = $(MAIN_SRC:.cpp=.o)
+TEST_OBJS = $(TEST_SRCS:.cpp=.o)
 
-.PHONY: all clean run test list A B C \
-        A1 A2 A3 B1 B2 B3 C1 C2 C3
+# Default target
+all: $(TARGET) $(TEST_TARGET)
 
-all: $(APP) $(TESTBIN)
+# Main executable
+$(TARGET): $(MAIN_OBJS)
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(MAIN_OBJS)
 
-# ---------------- build student app ----------------
-$(APP): $(APP_SRC) analyzer.h
-	$(CXX) $(CXXFLAGS) $(APP_SRC) -o $@ $(LDFLAGS)
+# Test executable
+$(TEST_TARGET): $(TEST_OBJS)
+	$(CXX) $(CXXFLAGS) -o $(TEST_TARGET) $(TEST_OBJS)
 
-# ---------------- build catch2 test runner ----------------
-$(TESTBIN): $(TEST_SRC) analyzer.h catch_amalgamated.hpp
-	$(CXX) $(CXXFLAGS) $(TEST_SRC) -o $@ $(LDFLAGS)
+# Compile .cpp to .o
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# ---------------- convenience targets ----------------
-run: $(APP)
-	./$(APP)
-
-test: $(TESTBIN)
-	./$(TESTBIN) -r console -s
-
-# list all tests (useful to verify names/tags)
-list: $(TESTBIN)
-	./$(TESTBIN) --list-tests
-
-# Run categories (if you want category-level scoring)
-A: $(TESTBIN)
-	./$(TESTBIN) "[A]" -r console -s
-
-B: $(TESTBIN)
-	./$(TESTBIN) "[B]" -r console -s
-
-C: $(TESTBIN)
-	./$(TESTBIN) "[C]" -r console -s
-
-# ---------------- per-test targets (point tests) ----------------
-# These assume your TEST_CASE names include "A1", "A2", ... OR you tagged them.
-# In your provided test file, they are named like "A1 (5%) ...", etc. :contentReference[oaicite:3]{index=3}
-A1: $(TESTBIN)
-	./$(TESTBIN) "A1*" -r console -s
-
-A2: $(TESTBIN)
-	./$(TESTBIN) "A2*" -r console -s
-
-A3: $(TESTBIN)
-	./$(TESTBIN) "A3*" -r console -s
-
-B1: $(TESTBIN)
-	./$(TESTBIN) "B1*" -r console -s
-
-B2: $(TESTBIN)
-	./$(TESTBIN) "B2*" -r console -s
-
-B3: $(TESTBIN)
-	./$(TESTBIN) "B3*" -r console -s
-
-C1: $(TESTBIN)
-	FAST=1 ./$(TESTBIN) "C1*" -r console -s
-
-C2: $(TESTBIN)
-	FAST=1 ./$(TESTBIN) "C2*" -r console -s
-
-C3: $(TESTBIN)
-	FAST=1 ./$(TESTBIN) "C3*" -r console -s
-
+# Clean build files
 clean:
-	rm -f $(APP) $(TESTBIN)
+	rm -f *.o $(TARGET) $(TEST_TARGET) test_*.csv
+
+# Run tests
+test: $(TEST_TARGET)
+	./$(TEST_TARGET)
+
+# Run main program
+run: $(TARGET)
+	./$(TARGET)
+
+# Run main in test mode
+run-test: $(TARGET)
+	./$(TARGET) --test
+
+# Phony targets
+.PHONY: all clean test run run-test
