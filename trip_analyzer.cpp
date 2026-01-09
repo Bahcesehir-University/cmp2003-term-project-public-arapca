@@ -167,8 +167,26 @@ std::vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
     return result;
 }
 
-// Test 1: Empty File
-bool TripAnalyzer::testEmptyFile() {
+// Clear all data
+void TripAnalyzer::clear() {
+    zoneCounts.clear();
+    zoneHourCounts.clear();
+    totalRecords = 0;
+    validRecords = 0;
+    skippedRecords = 0;
+}
+
+// Direct manipulation for testing
+void TripAnalyzer::addZoneCount(const std::string& zone, int count) {
+    zoneCounts[zone] += count;
+}
+
+void TripAnalyzer::addZoneHourCount(const std::string& zone, int hour, int count) {
+    zoneHourCounts[zone][hour] += count;
+}
+
+// Test functions
+bool TripAnalyzer::runEmptyFileTest() {
     std::ofstream file("test_empty.csv");
     file << "TripID,PickupZoneID,PickupTime\n";
     file.close();
@@ -181,8 +199,7 @@ bool TripAnalyzer::testEmptyFile() {
     return result;
 }
 
-// Test 2: Dirty Data
-bool TripAnalyzer::testDirtyData() {
+bool TripAnalyzer::runDirtyDataTest() {
     std::ofstream file("test_dirty.csv");
     file << "TripID,PickupZoneID,PickupTime\n";
     file << "1,ZONE001,2023-01-01 08:30\n";  // Valid
@@ -200,8 +217,7 @@ bool TripAnalyzer::testDirtyData() {
     return result;
 }
 
-// Test 3: Boundary Hours
-bool TripAnalyzer::testBoundaryHours() {
+bool TripAnalyzer::runBoundaryHoursTest() {
     std::ofstream file("test_boundary.csv");
     file << "TripID,PickupZoneID,PickupTime\n";
     file << "1,ZONE001,2023-01-01 00:00\n";  // Hour 0
@@ -228,8 +244,7 @@ bool TripAnalyzer::testBoundaryHours() {
     return result;
 }
 
-// Test 4: Tie Breaker
-bool TripAnalyzer::testTieBreaker() {
+bool TripAnalyzer::runTieBreakerTest() {
     std::ofstream file("test_tie.csv");
     file << "TripID,PickupZoneID,PickupTime\n";
     file << "1,ZONE_B,2023-01-01 08:30\n";
@@ -252,8 +267,7 @@ bool TripAnalyzer::testTieBreaker() {
     return result;
 }
 
-// Test 5: Single Hit (each zone appears once)
-bool TripAnalyzer::testSingleHit() {
+bool TripAnalyzer::runSingleHitTest() {
     std::ofstream file("test_single.csv");
     file << "TripID,PickupZoneID,PickupTime\n";
     for (int i = 1; i <= 15; i++) {
@@ -282,8 +296,7 @@ bool TripAnalyzer::testSingleHit() {
     return result;
 }
 
-// Test 6: Case Sensitivity
-bool TripAnalyzer::testCaseSensitivity() {
+bool TripAnalyzer::runCaseSensitivityTest() {
     std::ofstream file("test_case.csv");
     file << "TripID,PickupZoneID,PickupTime\n";
     file << "1,zoneA,2023-01-01 08:30\n";
@@ -302,8 +315,7 @@ bool TripAnalyzer::testCaseSensitivity() {
     return result;
 }
 
-// Test 7: High Collision (many trips for few zones)
-bool TripAnalyzer::testHighCollision() {
+bool TripAnalyzer::runHighCollisionTest() {
     std::ofstream file("test_collision.csv");
     file << "TripID,PickupZoneID,PickupTime\n";
     
@@ -325,8 +337,9 @@ bool TripAnalyzer::testHighCollision() {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     
     auto zones = topZones(2);
-    bool correctCounts = (zones[0].zone == "ZONE001" && zones[0].count == 700) &&
-                         (zones[1].zone == "ZONE002" && zones[1].count == 300);
+    bool correctCounts = (zones.size() >= 2 && 
+                         zones[0].zone == "ZONE001" && zones[0].count == 700 &&
+                         zones[1].zone == "ZONE002" && zones[1].count == 300);
     
     bool fastEnough = (duration.count() < 100); // Should process in < 100ms
     
@@ -334,8 +347,7 @@ bool TripAnalyzer::testHighCollision() {
     return correctCounts && fastEnough;
 }
 
-// Test 8: High Cardinality (many unique zones)
-bool TripAnalyzer::testHighCardinality() {
+bool TripAnalyzer::runHighCardinalityTest() {
     std::ofstream file("test_cardinality.csv");
     file << "TripID,PickupZoneID,PickupTime\n";
     
@@ -360,8 +372,7 @@ bool TripAnalyzer::testHighCardinality() {
     return correctCount && fastEnough;
 }
 
-// Test 9: Volume Test (10,000 records)
-bool TripAnalyzer::testVolume() {
+bool TripAnalyzer::runVolumeTest() {
     std::ofstream file("test_volume.csv");
     file << "TripID,PickupZoneID,PickupTime\n";
     
@@ -391,30 +402,4 @@ bool TripAnalyzer::testVolume() {
     
     std::remove("test_volume.csv");
     return correctCount && fastEnough;
-}
-
-// Clear all data
-void TripAnalyzer::clear() {
-    zoneCounts.clear();
-    zoneHourCounts.clear();
-    totalRecords = 0;
-    validRecords = 0;
-    skippedRecords = 0;
-}
-
-// Run specific test
-void TripAnalyzer::runTest(const std::string& testName) {
-    bool result = false;
-    
-    if (testName == "empty") result = testEmptyFile();
-    else if (testName == "dirty") result = testDirtyData();
-    else if (testName == "boundary") result = testBoundaryHours();
-    else if (testName == "tie") result = testTieBreaker();
-    else if (testName == "single") result = testSingleHit();
-    else if (testName == "case") result = testCaseSensitivity();
-    else if (testName == "collision") result = testHighCollision();
-    else if (testName == "cardinality") result = testHighCardinality();
-    else if (testName == "volume") result = testVolume();
-    
-    std::cout << (result ? "PASS" : "FAIL") << std::endl;
 }
