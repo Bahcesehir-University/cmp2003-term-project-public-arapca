@@ -61,16 +61,16 @@ public:
     std::vector<ZoneCount> topZones(int k = 10) const;
     std::vector<SlotCount> topBusySlots(int k = 10) const;
     
-    // Test functions (for autograder)
-    bool testEmptyFile();
-    bool testDirtyData();
-    bool testBoundaryHours();
-    bool testTieBreaker();
-    bool testSingleHit();
-    bool testCaseSensitivity();
-    bool testHighCollision();
-    bool testHighCardinality();
-    bool testVolume();
+    // Test helper functions
+    bool runEmptyFileTest();
+    bool runDirtyDataTest();
+    bool runBoundaryHoursTest();
+    bool runTieBreakerTest();
+    bool runSingleHitTest();
+    bool runCaseSensitivityTest();
+    bool runHighCollisionTest();
+    bool runHighCardinalityTest();
+    bool runVolumeTest();
     
     // Utility functions
     long long getTotalRecords() const { return totalRecords; }
@@ -80,8 +80,9 @@ public:
     // Clear for testing
     void clear();
     
-    // Run specific test
-    void runTest(const std::string& testName);
+    // Direct count manipulation for testing
+    void addZoneCount(const std::string& zone, int count);
+    void addZoneHourCount(const std::string& zone, int hour, int count);
 };
 
 #endif // TRIP_ANALYZER_H
