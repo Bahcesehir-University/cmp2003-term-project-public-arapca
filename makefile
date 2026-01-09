@@ -3,56 +3,69 @@ CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -I.
 TARGET = trip_analyzer
 
+# Test executables
+TEST_EXES = A1 A2 A3 B1 B2 B3 C1 C2 C3
+
 # Source files
-SRCS = trip_analyzer.cpp test_cases.cpp
-OBJS = $(SRCS:.cpp=.o)
+SRCS = trip_analyzer.cpp
+MAIN_SRC = main.cpp
+TEST_SRCS = $(addsuffix .cpp, $(TEST_EXES))
+
+# Object files
+SRC_OBJS = $(SRCS:.cpp=.o)
+MAIN_OBJ = $(MAIN_SRC:.cpp=.o)
+TEST_OBJS = $(TEST_SRCS:.cpp=.o)
 
 # Default target
-all: $(TARGET)
+all: $(TARGET) $(TEST_EXES)
 
 # Main executable
-$(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS)
+$(TARGET): $(MAIN_OBJ) $(SRC_OBJS)
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(MAIN_OBJ) $(SRC_OBJS)
+
+# Test executables
+A1: A1.cpp $(SRC_OBJS)
+	$(CXX) $(CXXFLAGS) -o A1 A1.cpp $(SRC_OBJS)
+
+A2: A2.cpp $(SRC_OBJS)
+	$(CXX) $(CXXFLAGS) -o A2 A2.cpp $(SRC_OBJS)
+
+A3: A3.cpp $(SRC_OBJS)
+	$(CXX) $(CXXFLAGS) -o A3 A3.cpp $(SRC_OBJS)
+
+B1: B1.cpp $(SRC_OBJS)
+	$(CXX) $(CXXFLAGS) -o B1 B1.cpp $(SRC_OBJS)
+
+B2: B2.cpp $(SRC_OBJS)
+	$(CXX) $(CXXFLAGS) -o B2 B2.cpp $(SRC_OBJS)
+
+B3: B3.cpp $(SRC_OBJS)
+	$(CXX) $(CXXFLAGS) -o B3 B3.cpp $(SRC_OBJS)
+
+C1: C1.cpp $(SRC_OBJS)
+	$(CXX) $(CXXFLAGS) -o C1 C1.cpp $(SRC_OBJS)
+
+C2: C2.cpp $(SRC_OBJS)
+	$(CXX) $(CXXFLAGS) -o C2 C2.cpp $(SRC_OBJS)
+
+C3: C3.cpp $(SRC_OBJS)
+	$(CXX) $(CXXFLAGS) -o C3 C3.cpp $(SRC_OBJS)
 
 # Compile .cpp to .o
-%.o: %.cpp
+%.o: %.cpp trip_analyzer.h
 	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-# Test targets (these match what the autograder expects)
-A1: $(TARGET)
-	./$(TARGET) --test-empty
-
-A2: $(TARGET)
-	./$(TARGET) --test-dirty
-
-A3: $(TARGET)
-	./$(TARGET) --test-boundary
-
-B1: $(TARGET)
-	./$(TARGET) --test-tie
-
-B2: $(TARGET)
-	./$(TARGET) --test-single
-
-B3: $(TARGET)
-	./$(TARGET) --test-case
-
-C1: $(TARGET)
-	./$(TARGET) --test-collision
-
-C2: $(TARGET)
-	./$(TARGET) --test-cardinality
-
-C3: $(TARGET)
-	./$(TARGET) --test-volume
 
 # Clean build files
 clean:
-	rm -f *.o $(TARGET) test_*.csv
+	rm -f *.o $(TARGET) $(TEST_EXES) test_*.csv
 
 # Run all tests
-test: $(TARGET)
-	./$(TARGET) --test-all
+test: $(TEST_EXES)
+	@echo "Running all tests..."
+	@for test in $(TEST_EXES); do \
+		echo -n "$$test: "; \
+		./$$test; \
+	done
 
 # Phony targets
-.PHONY: all clean test A1 A2 A3 B1 B2 B3 C1 C2 C3
+.PHONY: all clean test
