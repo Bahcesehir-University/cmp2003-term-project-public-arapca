@@ -7,9 +7,11 @@
 #include <string>
 #include <cctype>
 #include <iomanip>
+#include <random>
+#include <chrono>
 
 // Constructor
-TripAnalyzer::TripAnalyzer() : totalRecords(0), validRecords(0) {}
+TripAnalyzer::TripAnalyzer() : totalRecords(0), validRecords(0), skippedRecords(0) {}
 
 // Main ingestion function
 void TripAnalyzer::ingestFile(const std::string& filename) {
@@ -42,6 +44,8 @@ void TripAnalyzer::ingestFile(const std::string& filename) {
             
             // Update zone-hour counts
             zoneHourCounts[zoneID][hour]++;
+        } else {
+            skippedRecords++;
         }
     }
     
@@ -163,10 +167,254 @@ std::vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
     return result;
 }
 
-// Clear all data (for testing)
+// Test 1: Empty File
+bool TripAnalyzer::testEmptyFile() {
+    std::ofstream file("test_empty.csv");
+    file << "TripID,PickupZoneID,PickupTime\n";
+    file.close();
+    
+    clear();
+    ingestFile("test_empty.csv");
+    
+    bool result = (validRecords == 0 && totalRecords == 0);
+    std::remove("test_empty.csv");
+    return result;
+}
+
+// Test 2: Dirty Data
+bool TripAnalyzer::testDirtyData() {
+    std::ofstream file("test_dirty.csv");
+    file << "TripID,PickupZoneID,PickupTime\n";
+    file << "1,ZONE001,2023-01-01 08:30\n";  // Valid
+    file << "2,,2023-01-01 09:30\n";          // Missing zone
+    file << "3,ZONE002,invalid-time\n";       // Invalid time
+    file << "4,ZONE003,2023-01-01 25:30\n";   // Invalid hour
+    file << "5,ZONE004,2023-01-01 12:30\n";   // Valid
+    file.close();
+    
+    clear();
+    ingestFile("test_dirty.csv");
+    
+    bool result = (validRecords == 2 && skippedRecords == 3);
+    std::remove("test_dirty.csv");
+    return result;
+}
+
+// Test 3: Boundary Hours
+bool TripAnalyzer::testBoundaryHours() {
+    std::ofstream file("test_boundary.csv");
+    file << "TripID,PickupZoneID,PickupTime\n";
+    file << "1,ZONE001,2023-01-01 00:00\n";  // Hour 0
+    file << "2,ZONE001,2023-01-01 23:59\n";  // Hour 23
+    file << "3,ZONE002,2023-01-01 12:30\n";  // Hour 12
+    file.close();
+    
+    clear();
+    ingestFile("test_boundary.csv");
+    
+    // Check if hours 0 and 23 are correctly parsed
+    bool foundHour0 = false;
+    bool foundHour23 = false;
+    
+    for (const auto& zonePair : zoneHourCounts) {
+        for (const auto& hourPair : zonePair.second) {
+            if (hourPair.first == 0) foundHour0 = true;
+            if (hourPair.first == 23) foundHour23 = true;
+        }
+    }
+    
+    bool result = (foundHour0 && foundHour23 && validRecords == 3);
+    std::remove("test_boundary.csv");
+    return result;
+}
+
+// Test 4: Tie Breaker
+bool TripAnalyzer::testTieBreaker() {
+    std::ofstream file("test_tie.csv");
+    file << "TripID,PickupZoneID,PickupTime\n";
+    file << "1,ZONE_B,2023-01-01 08:30\n";
+    file << "2,ZONE_B,2023-01-01 09:30\n";
+    file << "3,ZONE_A,2023-01-01 10:30\n";
+    file << "4,ZONE_A,2023-01-01 11:30\n";
+    file << "5,ZONE_C,2023-01-01 12:30\n";
+    file.close();
+    
+    clear();
+    ingestFile("test_tie.csv");
+    
+    auto zones = topZones(3);
+    
+    bool result = (zones.size() >= 2 && 
+                   zones[0].zone == "ZONE_A" && zones[0].count == 2 &&
+                   zones[1].zone == "ZONE_B" && zones[1].count == 2);
+    
+    std::remove("test_tie.csv");
+    return result;
+}
+
+// Test 5: Single Hit (each zone appears once)
+bool TripAnalyzer::testSingleHit() {
+    std::ofstream file("test_single.csv");
+    file << "TripID,PickupZoneID,PickupTime\n";
+    for (int i = 1; i <= 15; i++) {
+        file << i << ",ZONE" << std::setw(3) << std::setfill('0') << i 
+             << ",2023-01-01 08:30\n";
+    }
+    file.close();
+    
+    clear();
+    ingestFile("test_single.csv");
+    
+    auto zones = topZones(10);
+    
+    bool result = (zones.size() == 10);
+    if (result) {
+        for (int i = 0; i < 10; i++) {
+            std::string expected = "ZONE" + std::string(3 - std::to_string(i+1).length(), '0') + std::to_string(i+1);
+            if (zones[i].zone != expected) {
+                result = false;
+                break;
+            }
+        }
+    }
+    
+    std::remove("test_single.csv");
+    return result;
+}
+
+// Test 6: Case Sensitivity
+bool TripAnalyzer::testCaseSensitivity() {
+    std::ofstream file("test_case.csv");
+    file << "TripID,PickupZoneID,PickupTime\n";
+    file << "1,zoneA,2023-01-01 08:30\n";
+    file << "2,ZONEA,2023-01-01 09:30\n";
+    file << "3,ZoneA,2023-01-01 10:30\n";
+    file.close();
+    
+    clear();
+    ingestFile("test_case.csv");
+    
+    auto zones = topZones(10);
+    
+    bool result = (zones.size() == 3); // All should be different
+    
+    std::remove("test_case.csv");
+    return result;
+}
+
+// Test 7: High Collision (many trips for few zones)
+bool TripAnalyzer::testHighCollision() {
+    std::ofstream file("test_collision.csv");
+    file << "TripID,PickupZoneID,PickupTime\n";
+    
+    // Create 1000 records with 70% ZONE001, 30% ZONE002
+    for (int i = 1; i <= 1000; i++) {
+        std::string zone = (i % 10 < 7) ? "ZONE001" : "ZONE002";
+        int hour = 8 + (i % 10);
+        file << i << "," << zone << ",2023-01-01 "
+             << std::setw(2) << std::setfill('0') << hour << ":30\n";
+    }
+    file.close();
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    clear();
+    ingestFile("test_collision.csv");
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    
+    auto zones = topZones(2);
+    bool correctCounts = (zones[0].zone == "ZONE001" && zones[0].count == 700) &&
+                         (zones[1].zone == "ZONE002" && zones[1].count == 300);
+    
+    bool fastEnough = (duration.count() < 100); // Should process in < 100ms
+    
+    std::remove("test_collision.csv");
+    return correctCounts && fastEnough;
+}
+
+// Test 8: High Cardinality (many unique zones)
+bool TripAnalyzer::testHighCardinality() {
+    std::ofstream file("test_cardinality.csv");
+    file << "TripID,PickupZoneID,PickupTime\n";
+    
+    for (int i = 1; i <= 1000; i++) {
+        file << i << ",ZONE" << std::setw(4) << std::setfill('0') << i 
+             << ",2023-01-01 08:30\n";
+    }
+    file.close();
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    clear();
+    ingestFile("test_cardinality.csv");
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    
+    bool correctCount = (zoneCounts.size() == 1000);
+    bool fastEnough = (duration.count() < 200); // Should process in < 200ms
+    
+    std::remove("test_cardinality.csv");
+    return correctCount && fastEnough;
+}
+
+// Test 9: Volume Test (10,000 records)
+bool TripAnalyzer::testVolume() {
+    std::ofstream file("test_volume.csv");
+    file << "TripID,PickupZoneID,PickupTime\n";
+    
+    std::mt19937 rng(42); // Fixed seed for reproducibility
+    std::uniform_int_distribution<int> zoneDist(1, 100);
+    std::uniform_int_distribution<int> hourDist(0, 23);
+    
+    for (int i = 1; i <= 10000; i++) {
+        int zoneNum = zoneDist(rng);
+        int hour = hourDist(rng);
+        
+        file << i << ",ZONE" << std::setw(3) << std::setfill('0') << zoneNum 
+             << ",2023-01-01 " << std::setw(2) << std::setfill('0') << hour << ":30\n";
+    }
+    file.close();
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    clear();
+    ingestFile("test_volume.csv");
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    
+    bool correctCount = (validRecords == 10000);
+    bool fastEnough = (duration.count() < 500); // Should process in < 500ms
+    
+    std::remove("test_volume.csv");
+    return correctCount && fastEnough;
+}
+
+// Clear all data
 void TripAnalyzer::clear() {
     zoneCounts.clear();
     zoneHourCounts.clear();
     totalRecords = 0;
     validRecords = 0;
+    skippedRecords = 0;
+}
+
+// Run specific test
+void TripAnalyzer::runTest(const std::string& testName) {
+    bool result = false;
+    
+    if (testName == "empty") result = testEmptyFile();
+    else if (testName == "dirty") result = testDirtyData();
+    else if (testName == "boundary") result = testBoundaryHours();
+    else if (testName == "tie") result = testTieBreaker();
+    else if (testName == "single") result = testSingleHit();
+    else if (testName == "case") result = testCaseSensitivity();
+    else if (testName == "collision") result = testHighCollision();
+    else if (testName == "cardinality") result = testHighCardinality();
+    else if (testName == "volume") result = testVolume();
+    
+    std::cout << (result ? "PASS" : "FAIL") << std::endl;
 }
